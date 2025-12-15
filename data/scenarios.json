@@ -1,0 +1,90 @@
+[
+  {
+    "id": 1,
+    "name": "Sneaker Portfolio - EOQ Baseline",
+    "created_at": "2025-11-25T01:59:50.173771Z",
+    "input": {
+      "scenarioName": "Sneaker Portfolio - EOQ Baseline",
+      "simulationDays": 365,
+      "serviceLevel": 0.95,
+      "skus": [
+        {
+          "skuId": "Sneaker_A",
+          "name": "Sneaker A",
+          "annualDemand": 12000,
+          "demandStdPct": 0.2,
+          "leadTimeDays": 7,
+          "leadTimeStdPct": 0.1,
+          "unitCost": 100.0,
+          "holdingCostPct": 0.16,
+          "orderCostFixed": 50.0,
+          "stockoutCostPerUnit": 20.0,
+          "policyType": "EOQ"
+        },
+        {
+          "skuId": "Sneaker_B",
+          "name": "Sneaker B",
+          "annualDemand": 8000,
+          "demandStdPct": 0.2,
+          "leadTimeDays": 5,
+          "leadTimeStdPct": 0.1,
+          "unitCost": 80.0,
+          "holdingCostPct": 0.12,
+          "orderCostFixed": 40.0,
+          "stockoutCostPerUnit": 20.0,
+          "policyType": "ROP"
+        },
+        {
+          "skuId": "Boot_C",
+          "name": "Boot C",
+          "annualDemand": 5000,
+          "demandStdPct": 0.2,
+          "leadTimeDays": 10,
+          "leadTimeStdPct": 0.1,
+          "unitCost": 150.0,
+          "holdingCostPct": 0.18,
+          "orderCostFixed": 60.0,
+          "stockoutCostPerUnit": 20.0,
+          "policyType": "MINMAX"
+        }
+      ]
+    },
+    "output": {
+      "Scenario_Name": "Sneaker Portfolio - EOQ Baseline",
+      "Simulation_Days": 365,
+      "Average_Fill_Rate": 99.8,
+      "Total_Cost": 4850.75,
+      "Cost_per_Unit_Demand": 0.194,
+      "Insights": {
+        "messages": [
+          "Simulated 3 SKUs over 365 days with target service level 95.0%.",
+          "Portfolio achieved an average fill rate of 99.80% with total cost 4,850.75 €.",
+          "Inventory Copilot Recommendations:",
+          "SKU Sneaker_A (Sneaker A): Balanced performance under current assumptions.",
+          "SKU Sneaker_B (Sneaker B): Balanced performance under current assumptions.",
+          "SKU Boot_C (Boot C): Balanced performance under current assumptions."
+        ],
+        "highlights": {
+          "best_fill_sku": {
+            "sku": "Sneaker_A",
+            "name": "Sneaker A",
+            "fill_rate": 99.9,
+            "policy": "EOQ"
+          },
+          "worst_fill_sku": {
+            "sku": "Boot_C",
+            "name": "Boot C",
+            "fill_rate": 99.7,
+            "policy": "MINMAX"
+          },
+          "highest_cost_sku": {
+            "sku": "Boot_C",
+            "name": "Boot C",
+            "total_cost": 2150.25,
+            "policy": "MINMAX"
+          }
+        }
+      }
+    }
+  }
+]
