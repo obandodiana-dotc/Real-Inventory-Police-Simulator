@@ -1,0 +1,4 @@
+SkuId,Name,AnnualDemand,DemandStdPct,LeadTimeDays,LeadTimeStdPct,UnitCost,HoldingCostPct,OrderCostFixed,StockoutCostPerUnit,PolicyType
+Sneaker_A,Sneaker A,12000,0.20,7,0.10,100.0,0.16,50.0,20.0,EOQ
+Sneaker_B,Sneaker B,8000,0.20,5,0.10,80.0,0.12,40.0,20.0,ROP
+Boot_C,Boot C,5000,0.20,10,0.10,150.0,0.18,60.0,20.0,MINMAX
