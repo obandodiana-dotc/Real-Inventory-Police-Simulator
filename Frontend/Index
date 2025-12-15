@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Real Inventory Policy Simulator · Supply Chain Lab</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    .heat-cell {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      margin: 1px;
+    }
+    
+    .chart-container {
+      position: relative;
+      height: 300px;
+      width: 100%;
+    }
+    
+    .section-height {
+      min-height: 350px;
+    }
+    
+    .tall-section {
+      min-height: 400px;
+    }
+    
+    .custom-scroll {
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 #f1f5f9;
+    }
+    
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 3px;
+    }
+    
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+  <!-- HEADER -->
+  <header class="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white shadow-lg mb-4">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex-1">
+        <h1 id="t_header_title" class="text-2xl sm:text-3xl font-semibold">
+          Real Inventory Policy Simulator
+        </h1>
+        <p id="t_header_subtitle" class="text-xs sm:text-sm text-gray-200 mt-1">
+          Visualize how different inventory policies impact fill rate, total cost, and stockout risk.
+        </p>
+        <p id="t_header_steps" class="mt-2 text-[11px] text-gray-200">
+          <span class="inline-flex items-center gap-1 bg-gray-800/60 px-2 py-1 rounded-full mr-1">
+            <span class="text-xs">1️⃣</span><span>Define the scenario</span>
+          </span>
+          <span class="inline-flex items-center gap-1 bg-gray-800/60 px-2 py-1 rounded-full mr-1">
+            <span class="text-xs">2️⃣</span><span>Set policies per SKU</span>
+          </span>
+          <span class="inline-flex items-center gap-1 bg-gray-800/60 px-2 py-1 rounded-full">
+            <span class="text-xs">3️⃣</span><span>Run the simulation & read KPIs</span>
+          </span>
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-2 items-end">
+        <div class="flex items-center gap-3 text-xs">
+          <div class="flex items-center gap-1">
+            <span id="t_label_language" class="text-gray-200">Language</span>
+            <select id="langSelector"
+                    class="border border-gray-300 text-gray-800 rounded px-1.5 py-0.5 text-xs bg-white">
+              <option value="en">EN</option>
+              <option value="de">DE</option>
+              <option value="es">ES</option>
+            </select>
+          </div>
+          <button id="btnHealth"
+                  class="text-[11px] px-2 py-1 rounded border border-green-500 text-green-100 bg-green-600/20 hover:bg-green-600/30 transition-colors">
+            API ✓
+          </button>
+        </div>
+        <p id="t_header_tagline" class="text-[10px] text-gray-300 text-right">
+          Built for Supply Chain & Operations teams.
+        </p>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-4 pb-10 space-y-6">
+
+    <!-- TOP ROW: Scenario + SKUs + Quick Guide -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      
+      <!-- SCENARIO SETUP (Izquierda) -->
+      <div class="bg-white rounded-xl shadow p-4 space-y-3 border border-gray-200 section-height flex flex-col">
+        <h2 id="t_scenario_setup" class="text-sm font-semibold text-gray-900">Scenario Setup</h2>
+
+        <div class="space-y-3 flex-grow">
+          <label class="block text-xs text-gray-700">
+            <span id="t_label_scenario_name">Scenario name</span>
+            <input id="scenarioName"
+                   class="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                   placeholder="Q4 – High variability"/>
+          </label>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block text-xs text-gray-700">
+              <span id="t_label_sim_days">Simulation days</span>
+              <input id="simulationDays" type="number" min="30" max="730"
+                     class="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                     value="180"/>
+            </label>
+            <label class="block text-xs text-gray-700">
+              <span id="t_label_service_level">Target service level</span>
+              <input id="serviceLevel" type="number" step="0.01"
+                     class="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                     value="0.95"/>
+            </label>
+          </div>
+
+          <!-- SLIDERS -->
+          <div class="pt-2">
+            <div class="flex justify-between text-[11px] text-gray-700">
+              <span id="t_label_demand_var">Demand variability (%)</span><span id="demandVarValue" class="font-semibold text-blue-600">20%</span>
+            </div>
+            <input id="demandVarSlider" type="range" min="5" max="60" value="20" 
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 mt-1"/>
+
+            <div class="flex justify-between text-[11px] text-gray-700 mt-3">
+              <span id="t_label_lt_var">Lead time variability (%)</span><span id="ltVarValue" class="font-semibold text-blue-600">10%</span>
+            </div>
+            <input id="ltVarSlider" type="range" min="0" max="60" value="10" 
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 mt-1"/>
+          </div>
+
+          <!-- ACTION BUTTONS -->
+          <div class="space-y-2 pt-3">
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btnSimulate" class="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 transition-colors font-medium text-xs">
+                ▶ <span id="t_btn_run_sim">Run simulation</span>
+              </button>
+              <button id="btnSimulateReal" class="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium text-xs">
+                📦 <span id="t_btn_real_skus">Real SKUs</span>
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btnExportCsv" class="px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors font-medium text-xs">
+                ⬇ <span id="t_btn_export_csv">Export CSV</span>
+              </button>
+              <button id="btnSimulateFile" class="px-3 py-1.5 rounded bg-purple-600 text-white hover:bg-purple-700 transition-colors font-medium text-xs">
+                📂 <span id="t_btn_run_file">Upload CSV</span>
+              </button>
+            </div>
+            <!-- Input file hidden, will be triggered by button -->
+            <input type="file" id="skuFile" accept=".csv" class="hidden">
+          </div>
+        </div>
+
+        <!-- STATUS -->
+        <p id="statusText" class="text-[11px] text-gray-500 mt-2 pt-2 border-t border-gray-200"></p>
+      </div>
+
+      <!-- SKUs (Centro) -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 section-height flex flex-col">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-sm font-semibold text-gray-900">SKU Configuration</h2>
+          <div class="flex items-center gap-2 text-xs">
+            <span id="t_viewmode_label" class="text-gray-600">View:</span>
+            <div class="inline-flex rounded-full bg-gray-100 p-0.5">
+              <button id="btnModeAnalyst"
+                      class="px-2 py-0.5 text-[10px] rounded-full font-medium bg-gray-800 text-white">
+                <span id="t_btn_analyst">Analyst</span>
+              </button>
+              <button id="btnModeManagement"
+                      class="px-2 py-0.5 text-[10px] rounded-full font-medium text-gray-700 hover:bg-white">
+                <span id="t_btn_management">Management</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow" id="sku-config-container">
+          <!-- SKU 1 -->
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <h3 id="t_sku1_title" class="text-xs font-semibold text-green-700 mb-2">📈 SKU 1 — Fast mover</h3>
+            
+            <div class="space-y-2">
+              <label class="text-xs text-gray-700">
+                <span id="t_label_name1">Name</span>
+                <select id="sku1_name" class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none">
+                  <option value="Sneaker – Fast mover">Sneaker – Fast mover</option>
+                  <option value="Running shoe – Fast mover">Running shoe – Fast mover</option>
+                  <option value="Sport T-shirt – Medium mover">Sport T-shirt – Medium mover</option>
+                </select>
+              </label>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_annual1">Annual demand</span>
+                  <input id="sku1_annual" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="24000"/>
+                </label>
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_lt1">Lead time (days)</span>
+                  <input id="sku1_lt" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="7"/>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_unitcost1">Unit cost</span>
+                  <input id="sku1_unitcost" type="number" step="0.01"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="45"/>
+                </label>
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_hold1">Holding cost (%)</span>
+                  <input id="sku1_holdpct" type="number" step="0.01"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="0.25"/>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_order1">Order cost</span>
+                  <input id="sku1_ordercost" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="80"/>
+                </label>
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_stock1">Stockout cost</span>
+                  <input id="sku1_stockout" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="60"/>
+                </label>
+              </div>
+
+              <label class="text-xs text-gray-700">
+                <span id="t_label_policy1">Policy</span>
+                <select id="sku1_policy" class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none">
+                  <option value="EOQ">EOQ</option>
+                  <option value="ROP">ROP</option>
+                  <option value="MINMAX">MINMAX</option>
+                  <option value="PERIODIC">PERIODIC</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <!-- SKU 2 -->
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <h3 id="t_sku2_title" class="text-xs font-semibold text-blue-700 mb-2">🧊 SKU 2 — Slow mover</h3>
+            
+            <div class="space-y-2">
+              <label class="text-xs text-gray-700">
+                <span id="t_label_name2">Name</span>
+                <select id="sku2_name" class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none">
+                  <option value="Boot – Slow mover">Boot – Slow mover</option>
+                  <option value="Work boot – Slow mover">Work boot – Slow mover</option>
+                  <option value="Luxury boot – Slow mover">Luxury boot – Slow mover</option>
+                </select>
+              </label>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_annual2">Annual demand</span>
+                  <input id="sku2_annual" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="6000"/>
+                </label>
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_lt2">Lead time (days)</span>
+                  <input id="sku2_lt" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="21"/>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_unitcost2">Unit cost</span>
+                  <input id="sku2_unitcost" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="90"/>
+                </label>
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_hold2">Holding cost (%)</span>
+                  <input id="sku2_holdpct" type="number" step="0.01"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="0.30"/>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_order2">Order cost</span>
+                  <input id="sku2_ordercost" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="100"/>
+                </label>
+                <label class="text-xs text-gray-700">
+                  <span id="t_label_stock2">Stockout cost</span>
+                  <input id="sku2_stockout" type="number"
+                         class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none" value="120"/>
+                </label>
+              </div>
+
+              <label class="text-xs text-gray-700">
+                <span id="t_label_policy2">Policy</span>
+                <select id="sku2_policy" class="mt-1 w-full border border-gray-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 focus:outline-none">
+                  <option value="EOQ">EOQ</option>
+                  <option value="ROP">ROP</option>
+                  <option value="MINMAX">MINMAX</option>
+                  <option value="PERIODIC">PERIODIC</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUICK GUIDE (Derecha) -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 section-height flex flex-col">
+        <h2 id="t_quick_guide_title" class="text-sm font-semibold text-gray-900 mb-3">How it works · Quick guide</h2>
+        
+        <div class="space-y-3 flex-grow">
+          <div class="flex items-start gap-3">
+            <span class="h-6 w-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">1</span>
+            <div>
+              <h3 id="t_step1_title" class="text-xs font-semibold text-gray-800">Set the scenario</h3>
+              <p id="t_step1_text" class="text-[11px] text-gray-600 mt-0.5">
+                Adjust simulation horizon, target service level, and variability parameters.
+              </p>
+            </div>
+          </div>
+          
+          <div class="flex items-start gap-3">
+            <span class="h-6 w-6 rounded-full bg-green-50 text-green-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">2</span>
+            <div>
+              <h3 id="t_step2_title" class="text-xs font-semibold text-gray-800">Configure SKUs</h3>
+              <p id="t_step2_text" class="text-[11px] text-gray-600 mt-0.5">
+                Define demand patterns, cost structure, lead times, and replenishment policies.
+              </p>
+            </div>
+          </div>
+          
+          <div class="flex items-start gap-3">
+            <span class="h-6 w-6 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">3</span>
+            <div>
+              <h3 id="t_step3_title" class="text-xs font-semibold text-gray-800">Analyze results</h3>
+              <p id="t_step3_text" class="text-[11px] text-gray-600 mt-0.5">
+                Use KPIs, charts, heatmap, and insights to understand risks and opportunities.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-gray-200">
+          <h3 id="t_compare_title" class="text-xs font-semibold text-gray-800 mb-2">What the simulator compares</h3>
+          <ul class="text-[11px] text-gray-600 space-y-1">
+            <li id="t_compare_li1">• EOQ, ROP, Min-Max, Periodic Review</li>
+            <li id="t_compare_li2">• Total cost vs Service level trade-offs</li>
+            <li id="t_compare_li3">• Stockout risk by SKU and portfolio</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- MIDDLE ROW: Charts + KPIs -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      
+      <!-- LEFT COLUMN: KPIs + Insights -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 tall-section flex flex-col">
+        <h2 id="t_portfolio_kpis" class="text-sm font-semibold text-gray-900 mb-3">Portfolio Performance</h2>
+        
+        <!-- KPIs GRID -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="flex items-center justify-between mb-1">
+              <span id="t_kpi_fill_label" class="text-xs font-medium text-gray-600">Fill Rate</span>
+              <i class="fas fa-percentage text-green-500 text-xs"></i>
+            </div>
+            <div id="kpiFillRate" class="text-xl font-bold text-green-600">--</div>
+            <p id="t_kpi_fill_desc" class="text-[10px] text-gray-500 mt-1">Demand served without stockout</p>
+          </div>
+          
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="flex items-center justify-between mb-1">
+              <span id="t_kpi_total_label" class="text-xs font-medium text-gray-600">Total Cost</span>
+              <i class="fas fa-euro-sign text-blue-500 text-xs"></i>
+            </div>
+            <div id="kpiTotalCost" class="text-xl font-bold text-gray-800">--</div>
+            <p id="t_kpi_total_desc" class="text-[10px] text-gray-500 mt-1">Inventory + Ordering + Stockout</p>
+          </div>
+          
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="flex items-center justify-between mb-1">
+              <span id="t_kpi_cpu_label" class="text-xs font-medium text-gray-600">Cost per Unit</span>
+              <i class="fas fa-balance-scale text-purple-500 text-xs"></i>
+            </div>
+            <div id="kpiCpu" class="text-xl font-bold text-gray-800">--</div>
+            <p id="t_kpi_cpu_desc" class="text-[10px] text-gray-500 mt-1">Avg cost to serve one unit</p>
+          </div>
+          
+          <div class="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="flex items-center justify-between mb-1">
+              <span id="t_kpi_days_label" class="text-xs font-medium text-gray-600">Simulation Days</span>
+              <i class="fas fa-calendar-alt text-yellow-500 text-xs"></i>
+            </div>
+            <div id="kpiDays" class="text-xl font-bold text-gray-800">--</div>
+            <p class="text-[10px] text-gray-500 mt-1">Horizon period</p>
+          </div>
+        </div>
+
+        <!-- INSIGHTS -->
+        <div class="mb-3">
+          <h3 id="t_insights_title" class="text-xs font-semibold text-gray-800 mb-2">
+            Smart Insights
+          </h3>
+          <div id="insightsBox"
+               class="text-[11px] text-gray-700 bg-blue-50/30 border border-blue-100 rounded-lg p-3 space-y-1 h-32 custom-scroll overflow-y-auto">
+            <p id="t_insights_placeholder" class="text-[11px] text-gray-500">
+              Run a simulation to see portfolio-level insights and recommendations.
+            </p>
+          </div>
+        </div>
+
+        <!-- POLICY ADVISOR -->
+        <div class="flex-grow">
+          <h3 id="t_policy_title" class="text-xs font-semibold text-gray-800 mb-2">
+            Policy Advisor
+          </h3>
+          <div id="policyAdvisorBox"
+               class="text-[11px] text-gray-700 bg-green-50/30 border border-green-100 rounded-lg p-3 space-y-1 h-32 custom-scroll overflow-y-auto">
+            <p id="t_policy_placeholder" class="text-[11px] text-gray-500">
+              Get personalized policy recommendations per SKU based on fill rate and cost.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER + RIGHT COLUMNS: Charts -->
+      <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Cost Chart -->
+        <div class="bg-white rounded-xl shadow p-4 border border-gray-200 tall-section flex flex-col">
+          <div class="flex justify-between items-center mb-3">
+            <h2 id="t_cost_by_sku" class="text-sm font-semibold text-gray-900">Cost Analysis by SKU</h2>
+            <button class="text-xs text-gray-500 hover:text-gray-700">
+              <i class="fas fa-download"></i>
+            </button>
+          </div>
+          <div class="chart-container flex-grow">
+            <canvas id="chartCost"></canvas>
+          </div>
+        </div>
+
+        <!-- Fill Rate Chart -->
+        <div class="bg-white rounded-xl shadow p-4 border border-gray-200 tall-section flex flex-col">
+          <div class="flex justify-between items-center mb-3">
+            <h2 id="t_fill_by_sku" class="text-sm font-semibold text-gray-900">Service Level by SKU</h2>
+            <button class="text-xs text-gray-500 hover:text-gray-700">
+              <i class="fas fa-download"></i>
+            </button>
+          </div>
+          <div class="chart-container flex-grow">
+            <canvas id="chartFill"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOTTOM ROW: Executive Summary + Risk + Working Capital + Details -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      
+      <!-- Executive Summary -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 section-height flex flex-col">
+        <h3 id="t_exec_title" class="text-sm font-semibold text-gray-900 mb-3">
+          Executive Summary
+        </h3>
+        <div id="execSummaryBox"
+             class="text-[11px] text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2 flex-grow custom-scroll overflow-y-auto">
+          <p id="t_exec_placeholder" class="text-[11px] text-gray-500">
+            Run a simulation to generate a management summary with key insights and recommendations.
+          </p>
+        </div>
+      </div>
+
+      <!-- Risk Dashboard + Working Capital -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 section-height flex flex-col">
+        <div class="mb-4">
+          <h3 id="t_risk_title" class="text-sm font-semibold text-gray-900 mb-2">
+            Risk Dashboard
+          </h3>
+          <div id="riskDashboardBox"
+               class="text-[11px] text-gray-700 bg-red-50/30 border border-red-100 rounded-lg p-3 space-y-1 h-28 custom-scroll overflow-y-auto">
+            <p id="t_risk_placeholder" class="text-[11px] text-gray-500">
+              Identify which SKUs concentrate service risk and demand at risk.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex-grow">
+          <h3 id="t_wc_title" class="text-sm font-semibold text-gray-900 mb-2">
+            Working Capital
+          </h3>
+          <div id="workingCapitalBox"
+               class="text-[11px] text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2 h-28">
+            <p id="t_wc_placeholder" class="text-[11px] text-gray-500">
+              Inventory value and days of inventory on hand (DOH) will appear here after simulation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap + Table -->
+      <div class="bg-white rounded-xl shadow p-4 border border-gray-200 section-height flex flex-col" id="heatmapTableContainer">
+        <div class="flex justify-between items-center mb-3">
+          <h2 id="t_heatmap_title" class="text-sm font-semibold text-gray-900">Stockout Heatmap</h2>
+          <span class="text-[10px] text-gray-500">SKU 1</span>
+        </div>
+        
+        <div class="mb-4">
+          <p id="t_heatmap_desc" class="text-[11px] text-gray-600 mb-2">
+            Daily stockout visualization. Red cells indicate stockouts.
+          </p>
+          <div id="heatmapContainer" class="flex flex-wrap bg-gray-100 p-2 rounded-lg min-h-16"></div>
+        </div>
+
+        <div class="flex-grow">
+          <h2 id="t_sku_table_title" class="text-sm font-semibold text-gray-900 mb-2">
+            SKU Summary
+          </h2>
+          <div class="overflow-auto h-36">
+            <table class="min-w-full text-[11px]">
+              <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                  <th id="t_tbl_col_sku" class="px-2 py-1 text-left font-semibold text-gray-700">SKU</th>
+                  <th id="t_tbl_col_policy" class="px-2 py-1 text-right font-semibold text-gray-700">Policy</th>
+                  <th id="t_tbl_col_fill" class="px-2 py-1 text-right font-semibold text-gray-700">Fill %</th>
+                  <th id="t_tbl_col_inv" class="px-2 py-1 text-right font-semibold text-gray-700">Avg Inv</th>
+                  <th id="t_tbl_col_cost" class="px-2 py-1 text-right font-semibold text-gray-700">Total Cost</th>
+                </tr>
+              </thead>
+              <tbody id="skuTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Font Awesome -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+
+  <!-- SCRIPT -->
+  <script>
+    const API_BASE = "http://127.0.0.1:5000";
+    let currentLang = "en";
+    let currentViewMode = "analyst";
+    let lastResults = null;
+    let chartCost = null;
+    let chartFill = null;
+
+    /* ==================== i18n ==================== */
+    const I18N_STRINGS = {
+      en: {
+        t_header_title: "Real Inventory Policy Simulator",
+        t_header_subtitle: "Visualize how different inventory policies impact fill rate, total cost, and stockout risk.",
+        t_header_steps: "1 Define the scenario, 2 Set policies per SKU, 3 Run the simulation & read KPIs",
+        t_header_tagline: "Built for Supply Chain & Operations teams.",
+        t_label_language: "Language",
+        t_viewmode_label: "View:",
+        t_scenario_setup: "Scenario Setup",
+        t_label_scenario_name: "Scenario name",
+        t_label_sim_days: "Simulation days",
+        t_label_service_level: "Target service level",
+        t_label_demand_var: "Demand variability (%)",
+        t_label_lt_var: "Lead time variability (%)",
+        t_btn_analyst: "Analyst",
+        t_btn_management: "Management",
+        t_btn_run_sim: "Run simulation",
+        t_btn_real_skus: "Real SKUs",
+        t_btn_export_csv: "Export CSV",
+        t_btn_run_file: "Upload CSV",
+        t_sku1_title: "📈 SKU 1 — Fast mover",
+        t_sku2_title: "🧊 SKU 2 — Slow mover",
+        t_label_name1: "Name",
+        t_label_annual1: "Annual demand",
+        t_label_lt1: "Lead time (days)",
+        t_label_unitcost1: "Unit cost",
+        t_label_hold1: "Holding cost (%)",
+        t_label_order1: "Order cost",
+        t_label_stock1: "Stockout cost",
+        t_label_policy1: "Policy",
+        t_label_name2: "Name",
+        t_label_annual2: "Annual demand",
+        t_label_lt2: "Lead time (days)",
+        t_label_unitcost2: "Unit cost",
+        t_label_hold2: "Holding cost (%)",
+        t_label_order2: "Order cost",
+        t_label_stock2: "Stockout cost",
+        t_label_policy2: "Policy",
+        t_portfolio_kpis: "Portfolio Performance",
+        t_kpi_fill_label: "Fill Rate",
+        t_kpi_fill_desc: "Demand served without stockout",
+        t_kpi_total_label: "Total Cost",
+        t_kpi_total_desc: "Inventory + Ordering + Stockout",
+        t_kpi_cpu_label: "Cost per Unit",
+        t_kpi_cpu_desc: "Avg cost to serve one unit",
+        t_kpi_days_label: "Simulation Days",
+        t_insights_title: "Smart Insights",
+        t_insights_placeholder: "Run a simulation to see portfolio-level insights.",
+        t_exec_title: "Executive Summary",
+        t_exec_placeholder: "Run a simulation to generate a management summary.",
+        t_risk_title: "Risk Dashboard",
+        t_risk_placeholder: "Identify which SKUs concentrate service risk.",
+        t_wc_title: "Working Capital",
+        t_wc_placeholder: "Inventory value and days of inventory on hand (DOH).",
+        t_policy_title: "Policy Advisor",
+        t_policy_placeholder: "Get personalized policy recommendations per SKU.",
+        t_cost_by_sku: "Cost Analysis by SKU",
+        t_fill_by_sku: "Service Level by SKU",
+        t_heatmap_title: "Stockout Heatmap",
+        t_heatmap_desc: "Daily stockout visualization. Red cells indicate stockouts.",
+        t_sku_table_title: "SKU Summary",
+        t_tbl_col_sku: "SKU",
+        t_tbl_col_policy: "Policy",
+        t_tbl_col_fill: "Fill %",
+        t_tbl_col_inv: "Avg Inv",
+        t_tbl_col_cost: "Total Cost"
+      },
+      es: {
+        t_header_title: "Simulador Real de Políticas de Inventario",
+        t_header_subtitle: "Visualiza cómo distintas políticas afectan el nivel de servicio, el coste total y el riesgo de rotura.",
+        t_header_steps: "1 Define el escenario, 2 Configura las políticas por SKU, 3 Ejecuta la simulación y lee los KPIs",
+        t_header_tagline: "Pensado para equipos de Supply Chain y Operaciones.",
+        t_label_language: "Idioma",
+        t_viewmode_label: "Vista:",
+        t_scenario_setup: "Configuración del Escenario",
+        t_label_scenario_name: "Nombre del escenario",
+        t_label_sim_days: "Días de simulación",
+        t_label_service_level: "Nivel de servicio objetivo",
+        t_label_demand_var: "Variabilidad de demanda (%)",
+        t_label_lt_var: "Variabilidad del lead time (%)",
+        t_btn_analyst: "Analista",
+        t_btn_management: "Dirección",
+        t_btn_run_sim: "Ejecutar simulación",
+        t_btn_real_skus: "SKUs reales",
+        t_btn_export_csv: "Exportar CSV",
+        t_btn_run_file: "Subir CSV",
+        t_sku1_title: "📈 SKU 1 — Alta rotación",
+        t_sku2_title: "🧊 SKU 2 — Baja rotación",
+        t_label_name1: "Nombre",
+        t_label_annual1: "Demanda anual",
+        t_label_lt1: "Lead time (días)",
+        t_label_unitcost1: "Coste unitario",
+        t_label_hold1: "Coste de mantenimiento (%)",
+        t_label_order1: "Coste de pedido",
+        t_label_stock1: "Coste de rotura",
+        t_label_policy1: "Política",
+        t_label_name2: "Nombre",
+        t_label_annual2: "Demanda anual",
+        t_label_lt2: "Lead time (días)",
+        t_label_unitcost2: "Coste unitario",
+        t_label_hold2: "Coste de mantenimiento (%)",
+        t_label_order2: "Coste de pedido",
+        t_label_stock2: "Coste de rotura",
+        t_label_policy2: "Política",
+        t_portfolio_kpis: "Rendimiento del Portafolio",
+        t_kpi_fill_label: "Nivel de Servicio",
+        t_kpi_fill_desc: "Demanda servida sin rotura",
+        t_kpi_total_label: "Coste Total",
+        t_kpi_total_desc: "Inventario + Pedido + Rotura",
+        t_kpi_cpu_label: "Coste por Unidad",
+        t_kpi_cpu_desc: "Coste medio para servir una unidad",
+        t_kpi_days_label: "Días de Simulación",
+        t_insights_title: "Insights Inteligentes",
+        t_insights_placeholder: "Ejecuta una simulación para ver insights a nivel portafolio.",
+        t_exec_title: "Resumen Ejecutivo",
+        t_exec_placeholder: "Ejecuta simulación para generar resumen de gestión.",
+        t_risk_title: "Panel de Riesgos",
+        t_risk_placeholder: "Identifica qué SKUs concentran el riesgo de servicio.",
+        t_wc_title: "Capital de Trabajo",
+        t_wc_placeholder: "Valor de inventario y días de inventario (DOH).",
+        t_policy_title: "Asesor de Políticas",
+        t_policy_placeholder: "Obtén recomendaciones de políticas personalizadas por SKU.",
+        t_cost_by_sku: "Análisis de Costes por SKU",
+        t_fill_by_sku: "Nivel de Servicio por SKU",
+        t_heatmap_title: "Mapa de Calor de Roturas",
+        t_heatmap_desc: "Visualización diaria de roturas. Celdas rojas indican roturas.",
+        t_sku_table_title: "Resumen de SKUs",
+        t_tbl_col_sku: "SKU",
+        t_tbl_col_policy: "Política",
+        t_tbl_col_fill: "Fill %",
+        t_tbl_col_inv: "Inv. Prom",
+        t_tbl_col_cost: "Coste Total"
+      },
+      de: {
+        t_header_title: "Realer Bestands-Policy-Simulator",
+        t_header_subtitle: "Visualisiere, wie unterschiedliche Bestandsstrategien Servicegrad, Gesamtkosten und Stockout-Risiko beeinflussen.",
+        t_header_steps: "1 Szenario definieren, 2 Policies je SKU festlegen, 3 Simulation ausführen und KPIs lesen",
+        t_header_tagline: "Für Supply-Chain- und Operations-Teams entwickelt.",
+        t_label_language: "Sprache",
+        t_viewmode_label: "Ansicht:",
+        t_scenario_setup: "Szenario-Einstellungen",
+        t_label_scenario_name: "Name des Szenarios",
+        t_label_sim_days: "Simulierte Tage",
+        t_label_service_level: "Ziel-Servicegrad",
+        t_label_demand_var: "Nachfrage-Variabilität (%)",
+        t_label_lt_var: "Lieferzeit-Variabilität (%)",
+        t_btn_analyst: "Analyst",
+        t_btn_management: "Management",
+        t_btn_run_sim: "Simulation starten",
+        t_btn_real_skus: "Reale SKUs",
+        t_btn_export_csv: "CSV exportieren",
+        t_btn_run_file: "CSV hochladen",
+        t_sku1_title: "📈 SKU 1 — Schnelldreher",
+        t_sku2_title: "🧊 SKU 2 — Langsamdreher",
+        t_label_name1: "Name",
+        t_label_annual1: "Jahresnachfrage",
+        t_label_lt1: "Lieferzeit (Tage)",
+        t_label_unitcost1: "Stückkosten",
+        t_label_hold1: "Lagerhaltungskosten (%)",
+        t_label_order1: "Bestellkosten",
+        t_label_stock1: "Stockout-Kosten",
+        t_label_policy1: "Policy",
+        t_label_name2: "Name",
+        t_label_annual2: "Jahresnachfrage",
+        t_label_lt2: "Lieferzeit (Tage)",
+        t_label_unitcost2: "Stückkosten",
+        t_label_hold2: "Lagerhaltungskosten (%)",
+        t_label_order2: "Bestellkosten",
+        t_label_stock2: "Stockout-Kosten",
+        t_label_policy2: "Policy",
+        t_portfolio_kpis: "Portfolio-Performance",
+        t_kpi_fill_label: "Servicegrad",
+        t_kpi_fill_desc: "Nachfrage ohne Stockout bedient",
+        t_kpi_total_label: "Gesamtkosten",
+        t_kpi_total_desc: "Lager + Bestellung + Stockout",
+        t_kpi_cpu_label: "Kosten je Einheit",
+        t_kpi_cpu_desc: "Durchschnittskosten für eine Einheit",
+        t_kpi_days_label: "Simulationstage",
+        t_insights_title: "Smart Insights",
+        t_insights_placeholder: "Starte eine Simulation für Portfolio-Insights.",
+        t_exec_title: "Executive Summary",
+        t_exec_placeholder: "Starte Simulation für Management-Zusammenfassung.",
+        t_risk_title: "Risiko-Dashboard",
+        t_risk_placeholder: "Identifiziere SKUs mit Service-Risiko.",
+        t_wc_title: "Working Capital",
+        t_wc_placeholder: "Bestandswert und Days on Hand (DOH).",
+        t_policy_title: "Policy-Berater",
+        t_policy_placeholder: "Erhalte personalisierte Policy-Empfehlungen je SKU.",
+        t_cost_by_sku: "Kostenanalyse je SKU",
+        t_fill_by_sku: "Servicegrad je SKU",
+        t_heatmap_title: "Stockout-Heatmap",
+        t_heatmap_desc: "Tägliche Stockout-Visualisierung. Rote Zellen zeigen Stockouts.",
+        t_sku_table_title: "SKU-Übersicht",
+        t_tbl_col_sku: "SKU",
+        t_tbl_col_policy: "Policy",
+        t_tbl_col_fill: "Fill %",
+        t_tbl_col_inv: "Ø Bestand",
+        t_tbl_col_cost: "Gesamtkosten"
+      }
+    };
+
+    function applyTranslations(lang) {
+      currentLang = lang;
+      const dict = I18N_STRINGS[lang] || I18N_STRINGS["en"];
+      Object.entries(dict).forEach(([id, text]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      });
+    }
+
+    /* ==================== INITIALIZATION ==================== */
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize language
+      applyTranslations("en");
+      
+      // Language selector
+      document.getElementById("langSelector").addEventListener("change", (e) => {
+        applyTranslations(e.target.value);
+      });
+      
+      // View mode buttons
+      document.getElementById("btnModeAnalyst").addEventListener("click", () => applyViewMode("analyst"));
+      document.getElementById("btnModeManagement").addEventListener("click", () => applyViewMode("management"));
+      
+      // Initialize view mode
+      applyViewMode("analyst");
+      
+      // Slider events
+      document.getElementById("demandVarSlider").addEventListener("input", (e) => {
+        document.getElementById("demandVarValue").textContent = e.target.value + "%";
+      });
+      
+      document.getElementById("ltVarSlider").addEventListener("input", (e) => {
+        document.getElementById("ltVarValue").textContent = e.target.value + "%";
+      });
+      
+      // Button events
+      document.getElementById("btnSimulate").addEventListener("click", simulatePortfolio);
+      document.getElementById("btnSimulateReal").addEventListener("click", simulateRealSkus);
+      document.getElementById("btnExportCsv").addEventListener("click", exportCsv);
+      document.getElementById("btnSimulateFile").addEventListener("click", () => {
+        document.getElementById("skuFile").click();
+      });
+      
+      // File input event
+      document.getElementById("skuFile").addEventListener("change", simulateFromFile);
+      
+      // Health check
+      document.getElementById("btnHealth").addEventListener("click", async () => {
+        try {
+          const res = await fetch(API_BASE + "/api/health");
+          const json = await res.json();
+          document.getElementById("btnHealth").textContent = json.status === "ok" ? "API ✓" : "API ?";
+        } catch {
+          document.getElementById("btnHealth").textContent = "API ✗";
+        }
+      });
+      
+      // Initialize empty charts
+      renderCharts({ SKUs: [] });
+    });
+
+    /* ==================== View Mode ==================== */
+    function applyViewMode(mode) {
+      currentViewMode = mode;
+      
+      const analystBtn = document.getElementById("btnModeAnalyst");
+      const managementBtn = document.getElementById("btnModeManagement");
+      const heatmapTableContainer = document.getElementById("heatmapTableContainer");
+      
+      if (mode === "analyst") {
+        analystBtn.className = "px-2 py-0.5 text-[10px] rounded-full font-medium bg-gray-800 text-white";
+        managementBtn.className = "px-2 py-0.5 text-[10px] rounded-full font-medium text-gray-700 hover:bg-white";
+        
+        // Show heatmap and table
+        if (heatmapTableContainer) heatmapTableContainer.style.display = "flex";
+        
+      } else if (mode === "management") {
+        analystBtn.className = "px-2 py-0.5 text-[10px] rounded-full font-medium text-gray-700 hover:bg-white";
+        managementBtn.className = "px-2 py-0.5 text-[10px] rounded-full font-medium bg-gray-800 text-white";
+        
+        // Hide heatmap and table
+        if (heatmapTableContainer) heatmapTableContainer.style.display = "none";
+      }
+    }
+
+    /* ==================== Helpers ==================== */
+    function formatMoney(value) {
+      if (value === null || value === undefined || isNaN(Number(value))) return "--";
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "EUR",
+        maximumFractionDigits: 0,
+      }).format(Number(value));
+    }
+
+    function badgePolicy(policy) {
+      const p = (policy || "").toUpperCase();
+      if (p === "EOQ") return '<span class="px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold text-[10px]">EOQ</span>';
+      if (p === "ROP") return '<span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold text-[10px]">ROP</span>';
+      if (p === "MINMAX") return '<span class="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold text-[10px]">Min-Max</span>';
+      if (p === "PERIODIC") return '<span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold text-[10px]">P,S</span>';
+      return policy || "--";
+    }
+
+    function badgeFill(fill) {
+      const v = Number(fill);
+      if (isNaN(v)) return "--";
+      let cls = "bg-red-100 text-red-800";
+      if (v >= 98) cls = "bg-green-100 text-green-800";
+      else if (v >= 95) cls = "bg-yellow-100 text-yellow-800";
+      else if (v >= 90) cls = "bg-orange-100 text-orange-800";
+      return '<span class="px-1.5 py-0.5 rounded ' + cls + ' font-semibold text-[10px]">' + v.toFixed(1) + "%</span>";
+    }
+
+    /* ==================== Build SKU Payload ==================== */
+    function buildSkuPayload() {
+      const demandVar = Number(document.getElementById("demandVarSlider").value) / 100.0;
+      const ltVar = Number(document.getElementById("ltVarSlider").value) / 100.0;
+
+      return [
+        {
+          skuId: "SKU1",
+          name: document.getElementById("sku1_name").value || "SKU 1",
+          annualDemand: Number(document.getElementById("sku1_annual").value) || 24000,
+          demandStdPct: demandVar,
+          leadTimeDays: Number(document.getElementById("sku1_lt").value) || 7,
+          leadTimeStdPct: ltVar,
+          unitCost: Number(document.getElementById("sku1_unitcost").value) || 45,
+          holdingCostPct: Number(document.getElementById("sku1_holdpct").value) || 0.25,
+          orderCostFixed: Number(document.getElementById("sku1_ordercost").value) || 80,
+          stockoutCostPerUnit: Number(document.getElementById("sku1_stockout").value) || 60,
+          policyType: document.getElementById("sku1_policy").value || "EOQ"
+        },
+        {
+          skuId: "SKU2",
+          name: document.getElementById("sku2_name").value || "SKU 2",
+          annualDemand: Number(document.getElementById("sku2_annual").value) || 6000,
+          demandStdPct: demandVar,
+          leadTimeDays: Number(document.getElementById("sku2_lt").value) || 21,
+          leadTimeStdPct: ltVar,
+          unitCost: Number(document.getElementById("sku2_unitcost").value) || 90,
+          holdingCostPct: Number(document.getElementById("sku2_holdpct").value) || 0.30,
+          orderCostFixed: Number(document.getElementById("sku2_ordercost").value) || 100,
+          stockoutCostPerUnit: Number(document.getElementById("sku2_stockout").value) || 120,
+          policyType: document.getElementById("sku2_policy").value || "MINMAX"
+        }
+      ];
+    }
+
+    /* ==================== Render Functions ==================== */
+    function renderKPIs(results) {
+      document.getElementById("kpiFillRate").textContent =
+        results.Average_Fill_Rate != null ? results.Average_Fill_Rate.toFixed(2) + "%" : "--";
+      document.getElementById("kpiTotalCost").textContent = formatMoney(results.Total_Cost);
+      document.getElementById("kpiCpu").textContent =
+        results.Cost_per_Unit_Demand != null
+          ? results.Cost_per_Unit_Demand.toFixed(4)
+          : "--";
+      document.getElementById("kpiDays").textContent = results.Simulation_Days || "--";
+    }
+
+    function renderInsights(results) {
+      const box = document.getElementById("insightsBox");
+      const ins = results.Insights || {};
+      const msgs = ins.messages || [];
+      
+      let html = "";
+      if (msgs.length) {
+        html += "<ul class='space-y-1'>";
+        msgs.forEach(m => {
+          html += "<li class='text-[11px]'>• " + m + "</li>";
+        });
+        html += "</ul>";
+      } else {
+        html = "<p class='text-[11px] text-gray-500'>Run a simulation to see insights.</p>";
+      }
+      box.innerHTML = html;
+    }
+
+    function renderExecutiveSummary(results) {
+      const box = document.getElementById("execSummaryBox");
+      if (!results || !results.SKUs || !results.SKUs.length) {
+        box.innerHTML = "<p class='text-[11px] text-gray-500'>No data available. Run a simulation first.</p>";
+        return;
+      }
+
+      const avgFill = Number(results.Average_Fill_Rate || 0);
+      const totalCost = Number(results.Total_Cost || 0);
+      const days = results.Simulation_Days || "?";
+      
+      let html = `<p class="text-[11px] mb-2"><strong>Overview:</strong> Simulation of <strong>${days} days</strong>. Portfolio with average fill rate <strong>${avgFill.toFixed(1)}%</strong> and total cost <strong>${formatMoney(totalCost)}</strong>.</p>`;
+      
+      box.innerHTML = html;
+    }
+
+    function renderRiskDashboard(results) {
+      const box = document.getElementById("riskDashboardBox");
+      if (!results || !results.SKUs || !results.SKUs.length) {
+        box.innerHTML = "<p class='text-[11px] text-gray-500'>No data available. Run a simulation first.</p>";
+        return;
+      }
+
+      const skus = results.SKUs;
+      const topRisk = [...skus].filter(s => s.Fill_Rate < 95).sort((a, b) => a.Fill_Rate - b.Fill_Rate).slice(0, 2);
+
+      let html = "";
+      if (topRisk.length) {
+        html += "<ul class='space-y-1'>";
+        topRisk.forEach(s => {
+          html += `<li class="text-[11px]"><strong>${s.Name}</strong> – ${s.Fill_Rate.toFixed(1)}% (${s.Policy})</li>`;
+        });
+        html += "</ul>";
+      } else {
+        html = "<p class='text-[11px] text-green-700'>✅ All SKUs are above 95% fill rate threshold.</p>";
+      }
+
+      box.innerHTML = html;
+    }
+
+    function renderWorkingCapital(results) {
+      const box = document.getElementById("workingCapitalBox");
+      if (!results || !results.SKUs || !results.SKUs.length) {
+        box.innerHTML = "<p class='text-[11px] text-gray-500'>No data available. Run a simulation first.</p>";
+        return;
+      }
+
+      const skus = results.SKUs;
+      let totalInvValue = 0;
+      skus.forEach(s => {
+        const avgInv = s.Avg_Inventory != null ? Number(s.Avg_Inventory) : 0;
+        if (s.Unit_Cost != null && !isNaN(Number(s.Unit_Cost))) {
+          totalInvValue += avgInv * Number(s.Unit_Cost);
+        }
+      });
+
+      box.innerHTML = `<p class="text-[11px]">Average inventory value: <strong>${formatMoney(totalInvValue)}</strong></p>`;
+    }
+
+    function renderPolicyAdvisor(results) {
+      const box = document.getElementById("policyAdvisorBox");
+      if (!results || !results.SKUs || !results.SKUs.length) {
+        box.innerHTML = "<p class='text-[11px] text-gray-500'>No data available. Run a simulation first.</p>";
+        return;
+      }
+
+      const skus = results.SKUs;
+      let html = "<ul class='space-y-1'>";
+      skus.forEach(s => {
+        const fill = Number(s.Fill_Rate);
+        let rec = "";
+        if (fill < 93) rec = "Consider increasing safety stock";
+        else if (fill >= 93 && fill < 97) rec = "Optimize current parameters";
+        else rec = "Policy performing well";
+        html += `<li class="text-[11px]"><strong>${s.Name}</strong> (${s.Policy}) – ${rec}</li>`;
+      });
+      html += "</ul>";
+      box.innerHTML = html;
+    }
+
+    function renderTables(results) {
+      const body = document.getElementById("skuTableBody");
+      body.innerHTML = "";
+      (results.SKUs || []).forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="px-2 py-1 border-b border-gray-100 text-left text-[11px]">${row.Name}</td>
+          <td class="px-2 py-1 border-b border-gray-100 text-right">${badgePolicy(row.Policy)}</td>
+          <td class="px-2 py-1 border-b border-gray-100 text-right">${badgeFill(row.Fill_Rate)}</td>
+          <td class="px-2 py-1 border-b border-gray-100 text-right text-[11px]">${row.Avg_Inventory?.toFixed(1) || "--"}</td>
+          <td class="px-2 py-1 border-b border-gray-100 text-right text-[11px] font-medium">${formatMoney(row.Total_Cost)}</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    function renderHeatmap(results) {
+      const container = document.getElementById("heatmapContainer");
+      container.innerHTML = "";
+      if (!results.SKUs || !results.SKUs.length) return;
+      const first = results.SKUs[0];
+      const states = first.Daily_States || [];
+      states.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "heat-cell";
+        div.style.backgroundColor = s.Stockout ? "#ef4444" : "#d1d5db";
+        container.appendChild(div);
+      });
+    }
+
+    /* ==================== Chart Rendering ==================== */
+    function renderCharts(results) {
+      const labels = (results.SKUs || []).map(s => s.Name);
+      const costs = (results.SKUs || []).map(s => s.Total_Cost);
+      const fills = (results.SKUs || []).map(s => s.Fill_Rate);
+
+      // Destroy existing charts
+      if (chartCost) chartCost.destroy();
+      if (chartFill) chartFill.destroy();
+
+      // Cost chart
+      const costCanvas = document.getElementById("chartCost");
+      if (costCanvas && costs.length > 0) {
+        const costCtx = costCanvas.getContext('2d');
+        chartCost = new Chart(costCtx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Total Cost',
+              data: costs,
+              backgroundColor: 'rgba(59, 130, 246, 0.7)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 1,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                ticks: { callback: value => '€' + value }
+              },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // Fill rate chart
+      const fillCanvas = document.getElementById("chartFill");
+      if (fillCanvas && fills.length > 0) {
+        const fillCtx = fillCanvas.getContext('2d');
+        chartFill = new Chart(fillCtx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Fill Rate (%)',
+              data: fills,
+              backgroundColor: fills.map(fill => {
+                if (fill >= 98) return 'rgba(16, 185, 129, 0.7)';
+                if (fill >= 95) return 'rgba(245, 158, 11, 0.7)';
+                if (fill >= 90) return 'rgba(249, 115, 22, 0.7)';
+                return 'rgba(239, 68, 68, 0.7)';
+              }),
+              borderColor: fills.map(fill => {
+                if (fill >= 98) return 'rgb(16, 185, 129)';
+                if (fill >= 95) return 'rgb(245, 158, 11)';
+                if (fill >= 90) return 'rgb(249, 115, 22)';
+                return 'rgb(239, 68, 68)';
+              }),
+              borderWidth: 1,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+                grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                ticks: { callback: value => value + '%' }
+              },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      }
+    }
+
+    /* ==================== Simulation Functions ==================== */
+    async function callApi(path, payload) {
+      const res = await fetch(API_BASE + path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error("API error: " + txt);
+      }
+      return await res.json();
+    }
+
+    async function simulatePortfolio() {
+      const status = document.getElementById("statusText");
+      status.textContent = "Running simulation...";
+      
+      try {
+        const scenarioName = document.getElementById("scenarioName").value || "Unnamed scenario";
+        const simulationDays = Number(document.getElementById("simulationDays").value) || 180;
+        const serviceLevel = Number(document.getElementById("serviceLevel").value) || 0.95;
+
+        const skus = buildSkuPayload();
+        const payload = { scenarioName, simulationDays, serviceLevel, skus };
+
+        console.log("Sending payload:", payload);
+        const json = await callApi("/api/simulate", payload);
+        
+        lastResults = json;
+        console.log("Received results:", json);
+        
+        renderKPIs(json);
+        renderInsights(json);
+        renderExecutiveSummary(json);
+        renderRiskDashboard(json);
+        renderWorkingCapital(json);
+        renderPolicyAdvisor(json);
+        renderTables(json);
+        renderHeatmap(json);
+        renderCharts(json);
+        
+        status.textContent = "Simulation completed.";
+      } catch (err) {
+        console.error("Simulation error:", err);
+        status.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function simulateRealSkus() {
+      const status = document.getElementById("statusText");
+      status.textContent = "Running simulation with real SKUs...";
+      
+      try {
+        const scenarioName = document.getElementById("scenarioName").value || "Real SKUs Scenario";
+        const simulationDays = Number(document.getElementById("simulationDays").value) || 180;
+        const serviceLevel = Number(document.getElementById("serviceLevel").value) || 0.95;
+        
+        const payload = { scenarioName, simulationDays, serviceLevel };
+        const json = await callApi("/api/simulate_real", payload);
+        
+        lastResults = json;
+        renderKPIs(json);
+        renderInsights(json);
+        renderExecutiveSummary(json);
+        renderRiskDashboard(json);
+        renderWorkingCapital(json);
+        renderPolicyAdvisor(json);
+        renderTables(json);
+        renderHeatmap(json);
+        renderCharts(json);
+        
+        status.textContent = "Simulation with real SKUs completed.";
+      } catch (err) {
+        console.error("Real SKUs simulation error:", err);
+        status.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function exportCsv() {
+      if (!lastResults || !lastResults.SKUs) {
+        alert("Run a simulation first.");
+        return;
+      }
+      
+      try {
+        const res = await fetch(API_BASE + "/api/export_csv", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ SKUs: lastResults.SKUs }),
+        });
+        
+        if (!res.ok) throw new Error("API error");
+        
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "inventory_results.csv";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Export error:", err);
+        alert("Error exporting CSV: " + err.message);
+      }
+    }
+
+    async function simulateFromFile() {
+      const fileInput = document.getElementById("skuFile");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert("Please choose a CSV file first.");
+        return;
+      }
+
+      const status = document.getElementById("statusText");
+      status.textContent = "Uploading file and running simulation...";
+
+      try {
+        const scenarioName = document.getElementById("scenarioName").value || "Uploaded SKUs Scenario";
+        const simulationDays = Number(document.getElementById("simulationDays").value) || 180;
+        const serviceLevel = Number(document.getElementById("serviceLevel").value) || 0.95;
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("scenarioName", scenarioName);
+        formData.append("simulationDays", String(simulationDays));
+        formData.append("serviceLevel", String(serviceLevel));
+
+        const res = await fetch(API_BASE + "/api/upload_skus", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) throw new Error("API error");
+        
+        const json = await res.json();
+        lastResults = json;
+
+        renderKPIs(json);
+        renderInsights(json);
+        renderExecutiveSummary(json);
+        renderRiskDashboard(json);
+        renderWorkingCapital(json);
+        renderPolicyAdvisor(json);
+        renderTables(json);
+        renderHeatmap(json);
+        renderCharts(json);
+
+        status.textContent = "Simulation from file completed.";
+      } catch (err) {
+        console.error("File upload error:", err);
+        status.textContent = "Error: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
